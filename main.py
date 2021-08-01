@@ -1,9 +1,10 @@
 from discord.ext import commands
-from discord_buttons_plugin.types import ButtonType
-from discord_components import DiscordComponents, Button, ButtonStyle, Select, SelectOption
+from discord.mentions import A
+#from discord_components import DiscordComponents, Button, ButtonStyle
+from discord.ui import Button, Select, View
 from user import User
 import logging, argparse, discord, random, string
-
+from discord import ButtonStyle, SelectOption
 def randomstr(n):
     return ''.join(random.choices(string.ascii_letters + string.digits, k=n))
 
@@ -27,59 +28,53 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 #event_on_connect
 @bot.event
 async def on_ready():
-    DiscordComponents(bot)
+    #DiscordComponents(bot)
     logger.info("Login")
 
-#event_on_test_command
+""" command """
+#TODO: permition, help, server
+#test
 @bot.command(name="test")
 async def test(ctx):
     await ctx.send('正常に動作しているようです...')
 
-#event_on_mkvote_command
+#mkvote
 @bot.command(name="mkvote")
 async def mkvote(ctx, args=None):
     id=randomstr(10)
     user.mkvote(id, [(usr.nick if not usr.nick is None else usr.name) for usr in ctx.channel.members if not usr.bot])#, ctx.channel.members)
-    await ctx.send('このボットは無能なので、以下のリンクを使って投票を作成できるようにしました。',components=[Button(style=ButtonStyle.URL,label="Link",url="https://marusoftware.net/service/vote?id="+id)])
+    view=View()
+    view.add_item(Button(style=ButtonStyle.link,label="Link",url="https://marusoftware.net/service/vote?id="+id))
+    await ctx.send("以下のURLを使って投票を設定してください。",view=view)
 
+#strt_vote
 @bot.command(name="start_vote")
 async def stvote(ctx, args=None):
-    buttons=[]
     if args != None and type(args) == str:
         usr=user.loadvote(args)
-        for i in range(len(usr["index"])//5):
-            for j in range(5):
-                buttons.append(Button(label=usr["index"][i*5+j], style=1))
-            await ctx.send(f'{usr["name"]}の{i}枚目',components=buttons)
-            buttons=[]
-        for k in range(len(usr["index"])%4):
+        border=25
+        llist=[]
+        view=View(timeout=None)
+        for i in range(len(usr["index"])//border):
+            for j in range(border):
+                llist.append(SelectOption(label=usr["index"][i*border+j]))
+            view.add_item(select(args+"_"+str(i), llist=llist, id=args))
+            llist=[]
+        for k in range(len(usr["index"])%border):
             try:
-                n=(i+1)*5+k
+                i=i+1
+                n=i*border+k
             except:
+                i=0
                 n=k
-            buttons.append(Button(label=usr["index"][n], style=1))
-        try:
-            await ctx.send(f'{usr["name"]}の{i+1}枚目',components=buttons)
-        except:
-            await ctx.send(f'{usr["name"]}の1枚目',components=buttons)
+            llist.append(SelectOption(label=usr["index"][n]))
+        view.add_item(select(args+"_"+str(i), llist=llist, id=args))
+        await ctx.send(f'{usr["name"]}',view=view)
         user.addmovingVote(args)
     else:
         await ctx.send("投票idが入力されていないようです。")
 
-@bot.listen("on_button_click")
-async def btclick(ctx):
-    id=ctx.message.content.split("の")[0]
-    if id in user.getmovingVotename():
-        member=ctx.guild.get_member(ctx.user.id)
-        member= member.name if member.nick is None else member.nick
-        out= user.vote(id, member, ctx.component.label)
-        if out:
-            await ctx.respond(content = f'{id}における{member}さんの{ctx.component.label}への投票を受け付けました。')
-        else:
-            await ctx.respond(content="何らかの問題により、投票に失敗しました。")
-    else:
-        await ctx.respond(content="この投票は締め切られているか、開始されていない可能性があります。")
-
+#close_vote
 @bot.command(name="close_vote")
 async def close(ctx, args=None):
     if not args is None and type(args) == str:
@@ -94,18 +89,53 @@ async def close(ctx, args=None):
     else:
         await ctx.send('投票idが入力されていないか、そのような投票が存在しない可能性があります。')
 
+#getOpening
 @bot.command(name="getOpening")
 async def getOpen(ctx, args=None):
     temp=user.getmovingVotedict()
     await ctx.send('\n'.join([f'{vote}:{temp[vote]}' for vote in temp]))
-#@bot.command(name="help")
-#async def help(ctx):
-#    await ctx.send("～VoteBotの使い方～ \
-#\n!test 生存確認 \
-#\n!mkvote 投票設定URL発行 \
-#\n!start_vote [ID] 設定後に渡されるIDを引数にして入力すると、投票ボタンが現れる。\
-#\n!close_vote [ID] 終了して結果を表示 \
-#\n!getOpening 進行中の投票を表示 \
-#\n!help このヘルプを表示")
+
+#getwtoken
+@bot.command(name="getwtoken")
+async def gtoken(ctx, id=None, user=None):
+    if not id is None and not user is None:
+        token=randomstr(15)
+        user.make_token(id, user, token)
+        await ctx.send(f'このトークンを以下のページで入力し、投票を行ってください。\n{token}\n',components=[Button(style=ButtonStyle.URL,label="Link",url="https://marusoftware.net/service/vote?mode=vote")])
+
+class select(Select):#TODO: other vote mode
+    def __init__(self, custom_id, llist, id):
+        super().__init__(custom_id=custom_id, options=llist)
+        self.id=id
+    async def callback(self, interaction):
+        view=View(timeout=None)
+        rdict=dict()
+        rdict.update(value=self.values,id=self.id,user=(interaction.user.name if interaction.user.nick is None else interaction.user.nick))
+        view.add_item(button(True, rdict))
+        view.add_item(button(False, rdict))
+        await interaction.response.send_message("これでよろしいですか?\n(複数の選択肢ウィジェットがある場合は、一つにつき1回この手続きが必要です。)\n"+",".join(self.values), view=view,ephemeral=True)
+
+class button(Button):
+    def __init__(self, ok, response_dict):
+        super().__init__(style=ButtonStyle.primary, label=("はい" if ok else "いいえ"), emoji=(bot.get_emoji(871402454527410267) if ok else bot.get_emoji(871402621657821215)))
+        self.ok=ok
+        self.response_dict=response_dict
+    async def callback(self, interaction: discord.Interaction):
+        id=self.response_dict["id"]
+        member=self.response_dict["user"]
+        index=self.response_dict["value"]
+        server=interaction.guild.id #For more server update
+        if self.ok:
+            if id in user.getmovingVote():
+                out= user.vote(id, member, index[0])#TODO: other vote mode
+                if out:
+                    await interaction.response.edit_message(content=f'{id}における{member}さんの{",".join(index)}への投票を受け付けました。', view=None)
+                else:
+                    await interaction.response.edit_message(content="何らかの問題により、投票に失敗しました。", view=None)
+            else:
+                await interaction.response.edit_message(content="この投票は締め切られているか、開始されていない可能性があります。", view=None)
+        else:
+            await interaction.response.edit_message(content="キャンセルしました。", view=None)
+
 
 bot.run("ODY5MDA0MjMzMzY4ODI1OTM5.YP35Qg.Zxpak4b0vPmNJekZRGeRuhX5qFs")

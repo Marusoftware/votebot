@@ -15,7 +15,7 @@ class User():
         temp.update(status="set")
         temp.update(users=users,mode=mode,name=name,datetime=datetime,index=index)
         pickle.dump(temp,open(self.conf_dir+id,"wb"))
-    def isexist(id):
+    def isexist(self, id):
         return id in os.listdir(self.conf_dir)
     def addmovingVote(self,id):
         dct={}
@@ -41,11 +41,7 @@ class User():
         temp=self.loadvote(id)
         temp.update(status="running")
         pickle.dump(temp,open(self.conf_dir+id,"wb"))
-    def vote(self, vote_name, user, index):
-        dct=pickle.load(open(self.conf_dir+"moving","rb"))
-        for id in dct:
-            if dct[id] == vote_name:
-                break
+    def vote(self, id, user, index):
         temp=self.loadvote(id)
         if temp["mode"] == 1:
             if not user in temp["users"]:
@@ -70,18 +66,6 @@ class User():
         temp=self.loadvote(id)
         user=pickle.load(open(self.conf_dir+"token"+token,"rb"))["user"]
         id=self.token2id(token)
-        if temp["mode"] == 1:
-            if not user in temp["users"]:
-                return False
-            if user in temp["voted"]:
-                return False
-            if index in temp["vote"]:
-                temp["vote"][index]+=1
-            else:
-                temp["vote"].update([(index,1)])
-            temp["voted"][user]=True
-            pickle.dump(temp,open(self.conf_dir+id,"wb"))
-            os.remove(self.conf_dir+"token"+token)
-            return True
+        self.vote(id, user, index)
     def token2id(self, token):
         return pickle.load(open(self.conf_dir+"token"+token,"rb"))["id"]
