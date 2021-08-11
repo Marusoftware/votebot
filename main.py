@@ -1,6 +1,5 @@
 from discord.ext import commands
 from discord.mentions import A
-#from discord_components import DiscordComponents, Button, ButtonStyle
 from discord.ui import Button, Select, View
 from user import User
 import logging, argparse, discord, random, string
@@ -16,19 +15,18 @@ argv=argparser.parse_args()
 #setting logging
 logging.basicConfig(level=argv.log_level)
 logger = logging.getLogger("Main")
-#backend
-user=User()
 #intents
 intents=discord.Intents.default()
 intents.typing=False
 intents.members=True
 #bot
 bot = commands.Bot(command_prefix="!", intents=intents)
+#backend
+user=User()
 
 #event_on_connect
 @bot.event
 async def on_ready():
-    #DiscordComponents(bot)
     logger.info("Login")
 
 """ command """
@@ -42,16 +40,16 @@ async def test(ctx):
 @bot.command(name="mkvote")
 async def mkvote(ctx, args=None):
     id=randomstr(10)
-    user.mkvote(id, [(usr.nick if not usr.nick is None else usr.name) for usr in ctx.channel.members if not usr.bot])#, ctx.channel.members)
+    user.mkvote(ctx.guild.id, id, [(usr.nick if not usr.nick is None else usr.name) for usr in ctx.channel.members if not usr.bot])#, ctx.channel.members)
     view=View()
-    view.add_item(Button(style=ButtonStyle.link,label="Link",url="https://marusoftware.net/service/vote?id="+id))
+    view.add_item(Button(style=ButtonStyle.link,label="Link",url="https://marusoftware.net/service/vote?id="+id+"&srv_id="+str(ctx.guild.id)))
     await ctx.send("以下のURLを使って投票を設定してください。",view=view)
 
 #strt_vote
 @bot.command(name="start_vote")
 async def stvote(ctx, args=None):
     if args != None and type(args) == str:
-        usr=user.loadvote(args)
+        usr=user.loadvote(ctx.guild.id, args)
         border=25
         llist=[]
         view=View(timeout=None)
@@ -60,17 +58,16 @@ async def stvote(ctx, args=None):
                 llist.append(SelectOption(label=usr["index"][i*border+j]))
             view.add_item(select(args+"_"+str(i), llist=llist, id=args))
             llist=[]
+        try:
+            i=i+1
+        except:
+            i=0
         for k in range(len(usr["index"])%border):
-            try:
-                i=i+1
-                n=i*border+k
-            except:
-                i=0
-                n=k
+            n=i*border+k
             llist.append(SelectOption(label=usr["index"][n]))
         view.add_item(select(args+"_"+str(i), llist=llist, id=args))
         await ctx.send(f'{usr["name"]}',view=view)
-        user.addmovingVote(args)
+        user.addmovingVote(ctx.guild.id, args)
     else:
         await ctx.send("投票idが入力されていないようです。")
 
@@ -78,21 +75,21 @@ async def stvote(ctx, args=None):
 @bot.command(name="close_vote")
 async def close(ctx, args=None):
     if not args is None and type(args) == str:
-        if args in user.getmovingVote():
-            user.closeVote(args)
-            temp=user.loadvote(args)
+        if args in user.getmovingVote(ctx.guild.id):
+            user.closeVote(ctx.guild.id, args)
+            temp=user.loadvote(ctx.guild.id, args)
             txt=""
             for index in temp["index"]:
                 txt+=f'{index}: {(temp["vote"][index] if index in temp["vote"] else 0) }票\n'
             await ctx.send(f'投票"{temp["name"]}"を締め切りました。\n結果は次のようになりました:\n{txt}')
-        else: print(user.getmovingVote())
+        else: print(user.getmovingVote(ctx.guild.id))
     else:
         await ctx.send('投票idが入力されていないか、そのような投票が存在しない可能性があります。')
 
 #getOpening
 @bot.command(name="getOpening")
 async def getOpen(ctx, args=None):
-    temp=user.getmovingVotedict()
+    temp=user.getmovingVotedict(ctx.guild.id)
     await ctx.send('\n'.join([f'{vote}:{temp[vote]}' for vote in temp]))
 
 #getwtoken
@@ -100,7 +97,7 @@ async def getOpen(ctx, args=None):
 async def gtoken(ctx, id=None, user=None):
     if not id is None and not user is None:
         token=randomstr(15)
-        user.make_token(id, user, token)
+        user.make_token(ctx.guild.id, id, user, token)
         await ctx.send(f'このトークンを以下のページで入力し、投票を行ってください。\n{token}\n',components=[Button(style=ButtonStyle.URL,label="Link",url="https://marusoftware.net/service/vote?mode=vote")])
 
 class select(Select):#TODO: other vote mode
@@ -124,10 +121,10 @@ class button(Button):
         id=self.response_dict["id"]
         member=self.response_dict["user"]
         index=self.response_dict["value"]
-        server=interaction.guild.id #For more server update
+        server=interaction.guild.id
         if self.ok:
-            if id in user.getmovingVote():
-                out= user.vote(id, member, index[0])#TODO: other vote mode
+            if id in user.getmovingVote(server):
+                out= user.vote(server, id, member, index[0])#TODO: other vote mode
                 if out:
                     await interaction.response.edit_message(content=f'{id}における{member}さんの{",".join(index)}への投票を受け付けました。', view=None)
                 else:
