@@ -1,7 +1,7 @@
 #! /usr/bin/python3
-
+votebot_mainDir=""
 import sys, datetime
-sys.path.append("/home/web/discord/")
+sys.path.append(votebot_mainDir)
 from user import User
 import cgi, cgitb
 print("Content-type:text/html\n\n")

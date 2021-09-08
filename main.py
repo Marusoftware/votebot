@@ -2,7 +2,7 @@ from discord.ext import commands
 from discord.mentions import A
 from discord.ui import Button, Select, View
 from user import User
-import logging, argparse, discord, random, string
+import logging, argparse, discord, random, string, os
 from discord import ButtonStyle, SelectOption
 def randomstr(n):
     return ''.join(random.choices(string.ascii_letters + string.digits, k=n))
@@ -134,5 +134,9 @@ class button(Button):
         else:
             await interaction.response.edit_message(content="キャンセルしました。", view=None)
 
-
-bot.run("ODY5MDA0MjMzMzY4ODI1OTM5.YP35Qg.Zxpak4b0vPmNJekZRGeRuhX5qFs")
+#run
+token_txt_path="token_vote.txt"
+if os.path.exists(token_txt_path):
+    bot.run(open(token_txt_path, "r").readline())
+else:
+    logger.critical("can't find bot token.", os.path.abspath(token_txt_path))
