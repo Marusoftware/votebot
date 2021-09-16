@@ -139,4 +139,4 @@ token_txt_path="token_vote.txt"
 if os.path.exists(token_txt_path):
     bot.run(open(token_txt_path, "r").readline())
 else:
-    logger.critical("can't find bot token.", os.path.abspath(token_txt_path))
+    logger.critical("can't find bot token. "+os.path.abspath(token_txt_path))
