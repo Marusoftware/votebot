@@ -8,13 +8,13 @@ print("Content-type:text/html\n\n")
 cgitb.enable(display=False)
 
 form = cgi.FieldStorage()
-id = form.getvalue("id", None)
-mode=form.getvalue("mode", "set")
+id = form.getfirst("id", None)
+mode=form.getfirst("mode", "set")
 if id is None and mode != "vote":
     print("No id presented...")
     sys.exit()
 try:
-    step = int(form.getvalue("step", 0))
+    step = int(form.getfirst("step", 0))
 except:
     print("step is not an number.")
     sys.exit()
@@ -38,7 +38,7 @@ if mode == "set":
     if not re.fullmatch("[0-9A-Za-z]+", id):
         print("Server attack was detected.")
         sys.exit()
-    srv_id=form.getvalue("srv_id", None)
+    srv_id=form.getfirst("srv_id", None)
     if srv_id is None:
         print("サーバーidが指定されていません。")
         sys.exit()
@@ -58,14 +58,14 @@ if mode == "set":
         output+='一度設定すると取り消すには選挙管理委員権限が必要です。<br /><input type="submit" /></form>'
     else:
         if require(["name","date","time","vote_mode", "users", "index"],form):
-            name=form.getvalue("name")
-            date=form.getvalue("date").split("-")
-            time=form.getvalue("time").split(":")
+            name=form.getfirst("name")
+            date=form.getfirst("date").split("-")
+            time=form.getfirst("time").split(":")
             dt=datetime.datetime(year=int(date[0]),month=int(date[1]),day=int(date[2]),hour=int(time[0]),minute=int(time[1]))
-            vote_mode=int(form.getvalue("vote_mode"))
+            vote_mode=int(form.getfirst("vote_mode"))
             users=form.getlist("users")
             if vote_mode==1:
-                index=form.getvalue("index").split(",")
+                index=form.getfirst("index").split(",")
             user.setvote(srv_id, id,users,vote_mode,name,dt,index)
             output=f'正常に投票を作成できました。<br />この投票のidは"{id}"です。<br />"!start_vote {id}"で投票を開始してください。'
         else:
@@ -76,7 +76,7 @@ elif mode == "vote":
         output='<form method="post" action="" enctype="application/x-www-form-urlencoded"><input type="hidden" name="mode" value="vote"><input type="hidden" name="step" value="1">'
         output+='<label>投票トークン:<input type="text" name="token"/></label><br /><input type="submit" /></form>'
     elif step == 1:
-        token=form.getvalue("token", None)
+        token=form.getfirst("token", None)
         if token is None:
             print("投票トークンが指定されていません")
             sys.exit()
