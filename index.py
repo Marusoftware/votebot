@@ -40,7 +40,7 @@ if not "mode" in form or form["mode"].value == "set":
         print("既に設定されています。再設定するには選挙管理委員権限をもつメンバーに解除してもらってください。")
         sys.exit()
     if step == 0:
-        output=f'<form method="post" action="./" enctype="application/x-www-form-urlencoded"> <input type="hidden" name="id" value={id}><input type="hidden" name="mode" value="set"><input type="hidden" name="step" value="1"><input type="hidden" name="srv_id" value="{srv_id}">'
+        output=f'<form method="post" action="" enctype="application/x-www-form-urlencoded"> <input type="hidden" name="id" value={id}><input type="hidden" name="mode" value="set"><input type="hidden" name="step" value="1"><input type="hidden" name="srv_id" value="{srv_id}">'
         output+='<label>投票の名前:<input type="text" name="name" /></label><br />'
         output+='<label>投票の形式:<div><input type="radio" name="vote_mode" value="1">投票(1個のみ)</input><input type="radio" name="vote_mode" value="2">信任投票</input><input type="radio" name="vote_mode" value="3">差額選挙</input></div></label><br />'
         output+='<label>有効期限:<input type="date" name="date" /><input type="time" name="time" /></label><br />'
