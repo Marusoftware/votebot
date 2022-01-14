@@ -47,7 +47,7 @@ async def mkvote(ctx, args=None):
     await ctx.send("以下のURLを使って投票を設定してください。",view=view)
 
 #strt_vote
-@bot.command(name="start_vote")
+@bot.command(name="start_vote", aliases=["stvote"])
 async def stvote(ctx, args=None):
     if args != None and type(args) == str:
         usr=user.loadvote(ctx.guild.id, args)

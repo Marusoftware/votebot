@@ -5,7 +5,7 @@ sys.path.append(votebot_mainDir)
 from user import User
 import cgi, cgitb
 print("Content-type:text/html\n\n")
-cgitb.enable()
+cgitb.enable(display=False)
 
 form = cgi.FieldStorage()
 if "id" in form:
@@ -61,7 +61,7 @@ if not "mode" in form or form["mode"].value == "set":
             if vote_mode==1:
                 index=form["index"].value.split(",")
             user.setvote(srv_id, id,users,vote_mode,name,dt,index)
-            output=f'正常に操作が完了しました。<br />この投票のidは"{id}"です。'
+            output=f'正常に投票を作成できました。<br />この投票のidは"{id}"です。<br />"!start_vote {id}"で投票を開始してください。'
         else:
             output="何か問題が起きたようです。設定に必要なデータが足りません。<br />"
             output+=str(require(["name","date","time"],form,rt_losts=True))
