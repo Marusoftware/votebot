@@ -35,7 +35,7 @@ def require(lst, obj, rt_losts=False):
 user=User()
 if mode == "set":
     import re
-    if not re.fullmatch("[0-9A-Fa-f]+", id):
+    if not re.fullmatch("[0-9A-Za-z]+", id):
         print("Server attack was detected.")
         sys.exit()
     srv_id=form.getvalue("srv_id", None)
