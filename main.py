@@ -34,7 +34,7 @@ async def on_ready():
 #test
 @bot.slash_command(name="test")
 async def test(ctx):
-    await ctx.send('正常に動作しているようです...')
+    await ctx.respond('正常に動作しているようです...')
 
 class mkvoteSelect(Select):
     def __init__(self, id):
