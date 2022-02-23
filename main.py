@@ -119,7 +119,7 @@ async def close_sl(ctx, id:Option(str, "Vote ID", required=True)):
 
 
 #getOpening
-@bot.slash_command(name="getOpening", description="Get opening Vote.")
+@bot.slash_command(name="getopening", description="Get opening Vote.")
 async def getOpen(ctx, args=None):
     temp=user.getmovingVotedict(ctx.guild.id)
     await ctx.send('\n'.join([f'{vote}:{temp[vote]}' for vote in temp]))
