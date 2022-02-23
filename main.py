@@ -91,13 +91,15 @@ async def stvote(ctx, id:str=None):
         if hasattr(ctx, "respond"): await ctx.respond(f"投票({usr['name']})を開始しました", ephemeral=True)
     else:
         await ctx.send("投票idが入力されていないようです。")
-@bot.slash_command(name="start_vote")
-async def stvote_sl(ctx, id:Option(str, description="Vote id", required=True)):
+        if hasattr(ctx, "respond"): await ctx.respond(f"エラーが発生しました。", ephemeral=True)
+@bot.slash_command(name="start_vote", description="Start Voting")
+async def stvote_sl(ctx, id:Option(str, description="Vote ID", required=True)):
     await stvote(ctx, id)
 
 #close_vote
-@bot.slash_command(name="close_vote")
-async def close(ctx, args=None):
+@bot.command(name="close_vote")
+async def close(ctx, id:str=None):
+    args=id
     if not args is None and type(args) == str:
         if args in user.getmovingVote(ctx.guild.id):
             user.closeVote(ctx.guild.id, args)
@@ -105,13 +107,19 @@ async def close(ctx, args=None):
             txt=""
             for index in temp["index"]:
                 txt+=f'{index}: {(temp["vote"][index] if index in temp["vote"] else 0) }票\n'
-            await ctx.send(f'投票"{temp["name"]}"を締め切りました。\n結果は次のようになりました:\n{txt}')
+            await ctx.respond(f'投票"{temp["name"]}"を締め切りました。\n結果は次のようになりました:\n{txt}')
+            if hasattr(ctx, "respond"): await ctx.respond(f"投票を締め切りました。", ephemeral=True)
         else: print(user.getmovingVote(ctx.guild.id))
     else:
-        await ctx.send('投票idが入力されていないか、そのような投票が存在しない可能性があります。')
+        await ctx.send('投票idが入力されていないか、そのような投票が存在しない可能性があります。', ephemeral=True)
+        if hasattr(ctx, "respond"): await ctx.respond(f"エラーが発生しました。", ephemeral=True)
+@bot.slash_command(name="close_vote", description="Close Voting.")
+async def close_sl(ctx, id:Option(str, "Vote ID", required=True)):
+    await close(ctx, id)
+
 
 #getOpening
-@bot.command(name="getOpening")
+@bot.slash_command(name="getOpening", description="Get opening Vote.")
 async def getOpen(ctx, args=None):
     temp=user.getmovingVotedict(ctx.guild.id)
     await ctx.send('\n'.join([f'{vote}:{temp[vote]}' for vote in temp]))
