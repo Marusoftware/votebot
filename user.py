@@ -1,8 +1,8 @@
 import pickle, os
 
 class User():
-    def __init__(self):
-        self.data_dir="/mnt/hdd_linuxfs_ext4/WEB/DATA/vote/"
+    def __init__(self, data_path):
+        self.data_dir=data_path
     def mkvote(self, server_id, id,users):
         temp={}
         temp.update(users=users)
@@ -57,7 +57,7 @@ class User():
             temp["vote"][index]=1
         temp["voted"][user]=True
         self.dumpvote(server_id, id, temp)
-        return True
+        return temp["name"]
     def make_token(self, server_id, id, user, token):
         dct={"id":id,"token":token,"user":user,"server_id":server_id}
         pickle.dump(dct,open(self.data_dir+"token"+token,"wb"))

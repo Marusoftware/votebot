@@ -1,0 +1,1 @@
+py-cord[voice,speed]==2.0.0b4
