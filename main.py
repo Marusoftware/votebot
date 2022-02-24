@@ -57,7 +57,7 @@ class setupModal(Modal):
         await interaction.response.send_message(f"設定が完了しました! 投票idは{self.vote_id}です。 \n start_voteコマンドで投票を開始してください。", ephemeral=True)
 
 #mkvote
-@bot.slash_command(name="mkvote", description="Make Voting.", guild_ids=[893715528038887466])
+@bot.slash_command(name="mkvote", description="Make Voting.")
 async def mkvote(ctx):
     id=randomstr(10)
     user.mkvote(ctx.guild.id, id, [(usr.nick if not usr.nick is None else usr.name) for usr in ctx.channel.members if not usr.bot])
