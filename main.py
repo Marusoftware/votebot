@@ -20,6 +20,7 @@ logger = logging.getLogger("Main")
 intents=discord.Intents.default()
 intents.typing=False
 intents.members=True
+intents.message_content=True
 #bot
 bot = commands.Bot(command_prefix="!", intents=intents)
 #backend
