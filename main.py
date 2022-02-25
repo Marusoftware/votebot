@@ -10,7 +10,7 @@ def randomstr(n):
 #parse argv
 argparser = argparse.ArgumentParser("VoteBot", description="VotingBot")
 argparser.add_argument("-log_level", action="store", type=int, dest="log_level", default=20 ,help="set Log level.(0-50)")
-argparser.add_argument("-path", action="store", type=str, dest="path", required=False ,help="data path", default="")
+argparser.add_argument("-path", action="store", type=str, dest="path", required=False ,help="data path", default="./")
 argparser.add_argument("token", action="store", type=str, help="discord bot token")
 argv=argparser.parse_args()
 #setting logging
@@ -54,7 +54,50 @@ class setupModal(Modal):
         self.add_item(InputText(style=InputTextStyle.multiline, label="選択肢(必須):", placeholder="1行に一つずつ入力してください。", required=True))
     async def callback(self, interaction: Interaction):
         user.setvote(server_id=interaction.guild_id, id=self.vote_id, users=[mem.id for mem in interaction.guild.members], mode=self.vote_mode, name=self.children[0].value, datetime=None if self.children[1].value is None else datetime.fromisoformat(self.children[1].value), index=self.children[2].value.split("\n"))
-        await interaction.response.send_message(f"設定が完了しました! 投票idは{self.vote_id}です。 \n start_voteコマンドで投票を開始してください。", ephemeral=True)
+        view=View(timeout=None)
+        view.add_item(startVoteBtn(self.vote_id))
+        await interaction.response.send_message(f"設定が完了しました! \nstart_voteコマンドで投票を開始してください。ボタンを押すと今すぐ開始できます。", ephemeral=True, view=view)
+
+class startVoteBtn(Button):
+    def __init__(self, vote_id):
+        super().__init__(style=ButtonStyle.green, label="投票を開始する")
+        self.vote_id=vote_id
+    async def callback(self, interaction: Interaction):
+        name, view=await start_vote(interaction.guild.id, self.vote_id)
+        await interaction.response.defer()
+        await interaction.channel.send(f"投票:{name}", view=view)
+        await interaction.edit_original_message(view=None)
+
+class selectVote(Select):
+    def __init__(self, action, gid):
+        options=[]
+        moving=user.getmovingVotedict(gid)
+        if action == "close":
+            for vote_id, vote_name in moving.items():
+                options.append(SelectOption(label=vote_name, value=vote_id))
+        else:
+            votes=user.listvote(gid)
+            for vote_id in votes:
+                if not vote_id in moving:
+                    vote=user.loadvote(server_id=gid, id=vote_id)
+                    if not "name" in vote: continue
+                    options.append(SelectOption(label=vote["name"], value=vote_id))
+        if len(options) == 0:
+            raise
+        super().__init__(placeholder="選択してください...", options=options, disabled=len(options)==0)
+        self.action=action
+    async def callback(self, interaction: Interaction):
+        if self.action == "close":
+            user.closeVote(interaction.guild.id, self.values[0])
+            temp=user.loadvote(interaction.guild.id, self.values[0])
+            txt=""
+            for index in temp["index"]:
+                txt+=f'{index}: {(temp["vote"][index] if index in temp["vote"] else 0) }票\n'
+            await interaction.response.send_message(f'投票"{temp["name"]}"を締め切りました。\n結果は次のようになりました:\n{txt}')
+        else:
+            name, view=await start_vote(interaction.guild.id, self.values[0])
+            await interaction.response.defer()
+            await interaction.channel.send(f"投票:{name}", view=view)
 
 #mkvote
 @bot.slash_command(name="mkvote", description="Make Voting.")
@@ -65,35 +108,46 @@ async def mkvote(ctx):
     view.add_item(mkvoteSelect(id))
     await ctx.respond("投票の種類を選んで設定を行ってください。", view=view, ephemeral=True)
 
+async def start_vote(gid, vote_id):
+    usr=user.loadvote(gid, vote_id)
+    border=25
+    llist=[]
+    view=View(timeout=None)
+    for i in range(len(usr["index"])//border):
+        for j in range(border):
+            llist.append(SelectOption(label=usr["index"][i*border+j]))
+        view.add_item(select(vote_id+"_"+str(i), llist=llist, id=vote_id))
+        llist=[]
+    try:
+        i=i+1
+    except:
+        i=0
+    for k in range(len(usr["index"])%border):
+        n=i*border+k
+        llist.append(SelectOption(label=usr["index"][n]))
+    view.add_item(select(vote_id+"_"+str(i), llist=llist, id=vote_id))
+    user.addmovingVote(gid, vote_id)
+    return usr["name"], view
+
 #start_vote
 @bot.command(name="start_vote", aliases=["stvote"])
 async def stvote(ctx, id:str=None):
     if id != None and type(id) == str:
-        usr=user.loadvote(ctx.guild.id, id)
-        border=25
-        llist=[]
-        view=View(timeout=None)
-        for i in range(len(usr["index"])//border):
-            for j in range(border):
-                llist.append(SelectOption(label=usr["index"][i*border+j]))
-            view.add_item(select(id+"_"+str(i), llist=llist, id=id))
-            llist=[]
-        try:
-            i=i+1
-        except:
-            i=0
-        for k in range(len(usr["index"])%border):
-            n=i*border+k
-            llist.append(SelectOption(label=usr["index"][n]))
-        view.add_item(select(id+"_"+str(i), llist=llist, id=id))
-        await ctx.send(f'{usr["name"]}',view=view)
-        user.addmovingVote(ctx.guild.id, id)
-        if hasattr(ctx, "respond"): await ctx.respond(f"投票({usr['name']})を開始しました", ephemeral=True)
+        name, view=await start_vote(ctx.guild.id, id)
+        if hasattr(ctx, "respond"): await ctx.respond(f"投票:{name}", view=view)
+        else: await ctx.send(f'投票:{name}',view=view)
     else:
-        await ctx.send("投票idが入力されていないようです。")
-        if hasattr(ctx, "respond"): await ctx.respond(f"エラーが発生しました。", ephemeral=True)
+        view=View(timeout=None)
+        try:
+            view.add_item(selectVote("start", ctx.guild.id))
+        except:
+            if hasattr(ctx, "respond"): await ctx.respond("開始できる投票がありません", ephemeral=True)
+            else: await ctx.send("開始できる投票がありません")
+        else:
+            if hasattr(ctx, "respond"): await ctx.respond("投票を選択してください。", view=view, ephemeral=True)
+            else: await ctx.send("投票を選択してください。", view=view)
 @bot.slash_command(name="start_vote", description="Start Voting")
-async def stvote_sl(ctx, id:Option(str, description="Vote ID", required=True)):
+async def stvote_sl(ctx, id:Option(str, description="Vote ID", required=False, default=None)):
     await stvote(ctx, id)
 
 #close_vote
@@ -107,30 +161,28 @@ async def close(ctx, id:str=None):
             txt=""
             for index in temp["index"]:
                 txt+=f'{index}: {(temp["vote"][index] if index in temp["vote"] else 0) }票\n'
-            await ctx.respond(f'投票"{temp["name"]}"を締め切りました。\n結果は次のようになりました:\n{txt}')
-            if hasattr(ctx, "respond"): await ctx.respond(f"投票を締め切りました。", ephemeral=True)
+            if hasattr(ctx, "respond"): await ctx.respond(f'投票"{temp["name"]}"を締め切りました。\n結果は次のようになりました:\n{txt}')
+            else: await ctx.send(f'投票"{temp["name"]}"を締め切りました。\n結果は次のようになりました:\n{txt}')
         else: print(user.getmovingVote(ctx.guild.id))
     else:
-        await ctx.send('投票idが入力されていないか、そのような投票が存在しない可能性があります。', ephemeral=True)
-        if hasattr(ctx, "respond"): await ctx.respond(f"エラーが発生しました。", ephemeral=True)
+        view=View(timeout=None)
+        try:
+            view.add_item(selectVote("close", ctx.guild.id))
+        except:
+            if hasattr(ctx, "respond"): await ctx.respond("終了できる投票がありません", ephemeral=True)
+            else: await ctx.send("終了できる投票がありません")
+        else:
+            if hasattr(ctx, "respond"): await ctx.respond("投票を選択してください。", view=view, ephemeral=True)
+            else: await ctx.send("投票を選択してください。", view=view)
 @bot.slash_command(name="close_vote", description="Close Voting.")
-async def close_sl(ctx, id:Option(str, "Vote ID", required=True)):
-    await close(ctx, id)
-
+async def close_sl(ctx, vote_id:Option(str, "Vote ID", required=False, default=None)):
+    await close(ctx, vote_id)
 
 #getOpening
 @bot.slash_command(name="getopening", description="Get opening Vote.")
-async def getOpen(ctx, args=None):
+async def getOpen(ctx):
     temp=user.getmovingVotedict(ctx.guild.id)
-    await ctx.send('\n'.join([f'{vote}:{temp[vote]}' for vote in temp]))
-
-#getwtoken
-#@bot.command(name="getwtoken")
-#async def gtoken(ctx, id=None, user=None):
-#    if not id is None and not user is None:
-#        token=randomstr(15)
-#        user.make_token(ctx.guild.id, id, user, token)
-#        await ctx.send(f'このトークンを以下のページで入力し、投票を行ってください。\n{token}\n',components=[Button(style=ButtonStyle.URL,label="Link",url="https://marusoftware.net/service/vote?mode=vote")])
+    await ctx.respond('\n'.join([f'{vote}:{temp[vote]}' for vote in temp]), ephemeral=True)
 
 class select(Select):#TODO: other vote mode
     def __init__(self, custom_id, llist, id):
@@ -146,7 +198,7 @@ class select(Select):#TODO: other vote mode
 
 class button(Button):
     def __init__(self, ok, response_dict):
-        super().__init__(style=ButtonStyle.primary, label=("はい" if ok else "いいえ"), emoji=(bot.get_emoji(871402454527410267) if ok else bot.get_emoji(871402621657821215)))
+        super().__init__(style=(ButtonStyle.green if ok else ButtonStyle.red), label=("はい" if ok else "いいえ"), emoji=(bot.get_emoji(871402454527410267) if ok else bot.get_emoji(871402621657821215)))
         self.ok=ok
         self.response_dict=response_dict
     async def callback(self, interaction: discord.Interaction):

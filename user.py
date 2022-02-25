@@ -9,16 +9,20 @@ class User():
         temp.update(status="not set")
         pickle.dump(temp,open(self.data_dir+str(server_id)+"_"+id,"wb"))
     def loadvote(self, server_id, id):
-        return pickle.load(open(self.data_dir+str(server_id)+"_"+id,"rb"))
+        with open(self.data_dir+str(server_id)+"_"+id,"rb") as f:
+            return pickle.load(f)
     def dumpvote(self, server_id, id, obj):
-        pickle.dump(obj,open(self.data_dir+str(server_id)+"_"+id,"wb"))
+        with open(self.data_dir+str(server_id)+"_"+id,"wb") as f:
+            pickle.dump(obj,f)
     def setvote(self, server_id, id, users, mode, name, datetime, index):
         temp={}
         temp.update(status="set")
-        temp.update(users=users,mode=mode,name=name,datetime=datetime,index=index)
+        temp.update(users=users,mode=int(mode),name=name,datetime=datetime,index=index)
         self.dumpvote(server_id, id, temp)
     def isexist(self, server_id, id):
         return str(server_id)+"_"+id in os.listdir(self.data_dir)
+    def listvote(self, server_id):
+        return [i.split("_")[1] for i in os.listdir(self.data_dir) if str(server_id) in i]
     def addmovingVote(self, server_id, id):
         dct={}
         temp=self.loadvote(server_id, id)
@@ -31,11 +35,20 @@ class User():
         temp.update(voted={})
         self.dumpvote(server_id, id, temp)
     def getmovingVote(self, server_id):
-        return list(pickle.load(open(self.data_dir+str(server_id)+"_moving","rb")).keys())
+        try:
+            return list(pickle.load(open(self.data_dir+str(server_id)+"_moving","rb")).keys())
+        except FileNotFoundError:
+            return []
     def getmovingVotename(self, server_id):
-        return list(pickle.load(open(self.data_dir+str(server_id)+"_moving","rb")).values())
+        try:
+            return list(pickle.load(open(self.data_dir+str(server_id)+"_moving","rb")).values())
+        except FileNotFoundError:
+            return []
     def getmovingVotedict(self, server_id):
-        return pickle.load(open(self.data_dir+str(server_id)+"_"+"moving","rb"))
+        try:
+            return pickle.load(open(self.data_dir+str(server_id)+"_"+"moving","rb"))
+        except FileNotFoundError:
+            return {}
     def closeVote(self, server_id, id):
         dct=pickle.load(open(self.data_dir+str(server_id)+"_"+"moving","rb"))
         dct.pop(id)
@@ -47,9 +60,9 @@ class User():
         temp=self.loadvote(server_id, id)
         if not user in temp["users"]:
             return False
-        if temp["mode"] == 1 and user in temp["voted"] and temp["voted"][user]:
+        if temp["mode"] == 0 and user in temp["voted"] and temp["voted"][user]:
             return False
-        elif temp["mode"] == 2:
+        elif temp["mode"] == 1:
             pass
         if index in temp["vote"]:
             temp["vote"][index]+=1
