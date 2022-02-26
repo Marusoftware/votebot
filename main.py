@@ -101,7 +101,7 @@ class selectVote(Select):
             await interaction.channel.send(f"投票:{name}", view=view)
 
 #mkvote
-@bot.slash_command(name="mkvote", description="Make Voting.")
+@bot.slash_command(name="mkvote", description="Make Voting.", default_permission=False)
 async def mkvote(ctx):
     id=randomstr(10)
     user.mkvote(ctx.guild.id, id, [(usr.nick if not usr.nick is None else usr.name) for usr in ctx.channel.members if not usr.bot])
@@ -147,7 +147,7 @@ async def stvote(ctx, id:str=None):
         else:
             if hasattr(ctx, "respond"): await ctx.respond("投票を選択してください。", view=view, ephemeral=True)
             else: await ctx.send("投票を選択してください。", view=view)
-@bot.slash_command(name="start_vote", description="Start Voting")
+@bot.slash_command(name="start_vote", description="Start Voting", default_permission=False)
 async def stvote_sl(ctx, id:Option(str, description="Vote ID", required=False, default=None)):
     await stvote(ctx, id)
 
@@ -175,12 +175,12 @@ async def close(ctx, id:str=None):
         else:
             if hasattr(ctx, "respond"): await ctx.respond("投票を選択してください。", view=view, ephemeral=True)
             else: await ctx.send("投票を選択してください。", view=view)
-@bot.slash_command(name="close_vote", description="Close Voting.")
+@bot.slash_command(name="close_vote", description="Close Voting.", default_permission=False)
 async def close_sl(ctx, vote_id:Option(str, "Vote ID", required=False, default=None)):
     await close(ctx, vote_id)
 
 #getOpening
-@bot.slash_command(name="getopening", description="Get opening Vote.")
+@bot.slash_command(name="getopening", description="Get opening Vote.", default_permission=False)
 async def getOpen(ctx):
     temp=user.getmovingVotedict(ctx.guild.id)
     await ctx.respond('\n'.join([f'{vote}:{temp[vote]}' for vote in temp]), ephemeral=True)
