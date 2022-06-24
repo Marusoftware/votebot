@@ -23,7 +23,7 @@ logger = logging.getLogger("Main")
 intents=discord.Intents.default()
 intents.typing=False
 intents.members=True
-#intents.message_content=True
+intents.message_content=True
 #bot
 bot = commands.Bot(command_prefix="!", intents=intents)
 #backend
@@ -42,10 +42,10 @@ async def test(ctx):
 
 class mkvoteSelect(Select):
     def __init__(self, id):
-        super().__init__(min_values=1, max_values=1, placeholder="選択してください...", options=[SelectOption(label="一つを選ぶ", value=0, description="選択肢の中から1つのみを選択できるようにします。")])
+        super().__init__(min_values=1, max_values=1, placeholder="選択してください...", options=[SelectOption(label="一つを選ぶ", value="0", description="選択肢の中から1つのみを選択できるようにします。")])
         self.vote_id=id
     async def callback(self, interaction: Interaction):
-        mode=self.values[0]
+        mode=int(self.values[0])
         await interaction.response.send_modal(setupModal(self.vote_id, mode))
 
 class setupModal(Modal):
@@ -57,7 +57,7 @@ class setupModal(Modal):
         self.add_item(InputText(style=InputTextStyle.singleline, label="有効期限:", placeholder="yyyy-mm-dd hh:mm:ss(部分的も可, 入力がない場合は期限なし)", required=False))
         self.add_item(InputText(style=InputTextStyle.multiline, label="選択肢(必須):", placeholder="1行に一つずつ入力してください。", required=True))
     async def callback(self, interaction: Interaction):
-        user.setvote(server_id=interaction.guild_id, id=self.vote_id, users=[mem.id for mem in interaction.guild.members], mode=self.vote_mode, name=self.children[0].value, datetime=None if self.children[1].value is None else datetime.fromisoformat(self.children[1].value), index=self.children[2].value.split("\n"))
+        user.setvote(server_id=interaction.guild_id, id=self.vote_id, users=[mem.id for mem in interaction.guild.members], mode=self.vote_mode, name=self.children[0].value, datetime=None if self.children[1].value == "" else datetime.fromisoformat(self.children[1].value), index=self.children[2].value.split("\n"))
         view=View(timeout=None)
         view.add_item(startVoteBtn(self.vote_id))
         await interaction.response.send_message(f"設定が完了しました! \nstart_voteコマンドで投票を開始してください。ボタンを押すと今すぐ開始できます。", ephemeral=True, view=view)
