@@ -11,10 +11,13 @@ def randomstr(n):
 argparser = argparse.ArgumentParser("VoteBot", description="VotingBot")
 argparser.add_argument("-log_level", action="store", type=int, dest="log_level", default=20 ,help="set Log level.(0-50)")
 argparser.add_argument("-path", action="store", type=str, dest="path", required=False ,help="data path", default="./")
+argparser.add_argument("-logfile", action="store", type=str, dest="logfile", required=False ,help="log file path", default=None)
 argparser.add_argument("token", action="store", type=str, help="discord bot token")
 argv=argparser.parse_args()
 #setting logging
-logging.basicConfig(level=argv.log_level)
+logger_options={}
+if argv.logfile is not None: logger_options["filename"]=argv.logfile
+logging.basicConfig(level=argv.log_level, **logger_options)
 logger = logging.getLogger("Main")
 #intents
 intents=discord.Intents.default()
