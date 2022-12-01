@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "votebot"
+version = "0.1.0"
+description = "The discord bot for voting."
+authors = ["Maruo.S <raspi-maru2004@outlook.jp>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.8"
+py-cord = {extras = ["speed", "voice"], version = "^2.3.1"}
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
