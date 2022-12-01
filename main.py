@@ -70,7 +70,7 @@ class startVoteBtn(Button):
         name, view=await start_vote(interaction.guild.id, self.vote_id)
         await interaction.response.defer()
         await interaction.channel.send(f"投票:{name}", view=view)
-        await interaction.edit_original_message(view=None)
+        await interaction.edit_original_response(view=None)
 
 class selectVote(Select):
     def __init__(self, action, gid):
@@ -215,13 +215,13 @@ class button(Button):
             if id in user.getmovingVote(server):
                 out= user.vote(server, id, member_id, index[0])#TODO: other vote mode
                 if out:
-                    await interaction.response.edit_message(content=f'投票{out}における{member}さんの{",".join(index)}への投票を受け付けました。', view=None)
+                    await interaction.edit_original_response(content=f'投票{out}における{member}さんの{",".join(index)}への投票を受け付けました。', view=None)
                 else:
-                    await interaction.response.edit_message(content="何らかの問題により、投票に失敗しました。", view=None)
+                    await interaction.edit_original_response(content="何らかの問題により、投票に失敗しました。", view=None)
             else:
-                await interaction.response.edit_message(content="この投票は締め切られているか、開始されていない可能性があります。", view=None)
+                await interaction.edit_original_response(content="この投票は締め切られているか、開始されていない可能性があります。", view=None)
         else:
-            await interaction.response.edit_message(content="キャンセルしました。", view=None)
+            await interaction.edit_original_response(content="キャンセルしました。", view=None)
 
 #run
 bot.run(argv.token)
