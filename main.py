@@ -27,12 +27,8 @@ if argv.logfile is not None:
     logger_options["filename"] = argv.logfile
 logging.basicConfig(level=argv.log_level, **logger_options)
 logger = logging.getLogger("Main")
-
 logger_db_client = logging.getLogger("db_client")
-logger_db_client.setLevel(logging.DEBUG)
-
 logger_tortoise = logging.getLogger("tortoise")
-logger_tortoise.setLevel(logging.DEBUG)
 
 # intents
 intents = discord.Intents.default()
