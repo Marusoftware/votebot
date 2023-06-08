@@ -1,14 +1,12 @@
-from datetime import datetime
+import logging, argparse, pytz
+from datetime import datetime, timezone, timedelta
+from tortoise import Tortoise, run_async
+import discord
+from discord import ButtonStyle, SelectOption, Option, Interaction, InputTextStyle
 from discord.ext import commands
 from discord.ui import Button, Select, View, Modal, InputText
-from tortoise import Tortoise, run_async
+
 from db import DB, VoteStatus
-import logging
-import argparse
-import discord
-import random
-import string
-from discord import ButtonStyle, SelectOption, Option, Interaction, InputTextStyle
 
 # parse argv
 argparser = argparse.ArgumentParser("VoteBot", description="VotingBot")
@@ -73,16 +71,16 @@ class setupModal(Modal):
         self.add_item(InputText(style=InputTextStyle.singleline,
                       label="投票の名前(必須):", required=True))
         self.add_item(InputText(style=InputTextStyle.singleline, label="有効期限:",
-                      placeholder="yyyy-mm-dd hh:mm:ss(部分的も可, 入力がない場合は期限なし)", required=False))
+                      placeholder="yyyy-mm-dd hh:mm:ss+zz:zz(ISOフォーマットで入力。省略可能)", required=False))
         self.add_item(InputText(style=InputTextStyle.multiline,
                       label="選択肢(必須):", placeholder="1行に一つずつ入力してください。", required=True))
 
     async def callback(self, interaction: Interaction):
         await user.setvote(server_id=interaction.guild_id, id=self.vote_id, users=[mem.id for mem in interaction.guild.members], mode=self.vote_mode, name=self.children[0].value,
-                            datetime=None if self.children[1].value == "" else datetime.fromisoformat(self.children[1].value), index=self.children[2].value.split("\n"))
+                            datetime=None if self.children[1].value == "" else (datetime.fromisoformat(self.children[1].value) if "+" in self.children[1].value else datetime.fromisoformat(self.children[1].value).astimezone(timezone(timedelta(hours=9)))), index=self.children[2].value.split("\n"))
         view = View(timeout=None)
         view.add_item(startVoteBtn(self.vote_id))
-        await interaction.response.send_message(f"設定が完了しました! \nstart_voteコマンドで投票を開始してください。ボタンを押すと今すぐ開始できます。", ephemeral=True, view=view)
+        await interaction.response.send_message(f"設定が完了しました! \n/start_voteコマンドで投票を開始してください。もしくはボタンを押すと今すぐ開始できます。", ephemeral=True, view=view)
 
 
 class startVoteBtn(Button):
@@ -245,6 +243,10 @@ class select(Select):  # TODO: other vote mode
         await interaction.response.send_message("これでよろしいですか?\n(複数の選択肢ウィジェットがある場合は、一つにつき1回この手続きが必要です。)\n"+",".join(self.values), view=view, ephemeral=True)
 
 
+locale2tz={
+    "ja": 9,
+}
+
 class button(Button):
     def __init__(self, ok, response_dict):
         super().__init__(style=(ButtonStyle.green if ok else ButtonStyle.red), label=("はい" if ok else "いいえ"),
@@ -263,7 +265,7 @@ class button(Button):
             vote=await user.loadvote(server, id)
             if vote.status==VoteStatus.running:
                 # TODO: other vote mode
-                out = await user.vote(server, id, member_id, index[0])
+                out = await user.vote(server, id, member_id, index[0], tzinfo=timezone(timedelta(hours=locale2tz.get(interaction.locale, 9))))
                 if out:
                     await interaction.edit_original_response(content=f'投票{out}における{member}さんの{",".join(index)}への投票を受け付けました。', view=None)
                 else:

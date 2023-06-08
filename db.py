@@ -2,7 +2,7 @@ from enum import IntEnum
 from tortoise.fields import BigIntField, ReverseRelation, UUIDField, IntEnumField, CharField, DatetimeField, ManyToManyField, ForeignKeyField, IntField, ManyToManyRelation
 from tortoise.models import Model
 from tortoise import fields
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 class VoteStatus(IntEnum):
     not_set=0
@@ -66,13 +66,13 @@ class DB():
         vote=await self.loadvote(server_id, id)
         vote.status=VoteStatus.closed
         await vote.save()
-    async def vote(self, server_id, id, user, index):
+    async def vote(self, server_id, id, user, index, tzinfo=timezone(timedelta(hours=9))):
         temp=await self.loadvote(server_id, id)
         if not user in [user.id for user in temp.users]:
             return False
         user=await User.get(id=user)
         if temp.end_time is not None:
-            if temp.end_time > datetime.now():
+            if temp.end_time > datetime.now(tz=tzinfo):
                 return False
         if temp.mode == VoteMode.one_select_once and (await user.indexes.filter(vote=temp).exists() or not await user.votes.filter(id=temp.id).exists()):
             return False
