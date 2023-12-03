@@ -97,7 +97,7 @@ class startVoteBtn(Button):
 
 class selectVote(Select):
     @classmethod
-    async def init(cls, action, gid):
+    async def init(cls, action, gid, show_user=False):
         options = []
         moving = await user.getmovingVote(gid)
         if action == "close":
@@ -113,15 +113,19 @@ class selectVote(Select):
         obj=cls(placeholder="選択してください...",
                          options=options, disabled=len(options) == 0)
         obj.action = action
+        obj.show_user=show_user
         return obj
 
     async def callback(self, interaction: Interaction):
         if self.action == "close":
             await user.closeVote(interaction.guild.id, self.values[0])
             vote = await user.loadvote(interaction.guild.id, self.values[0])
-            txt = ""
+            txt = "```"
             for index in vote.indexes:
                 txt += f'{index.name}: {index.point}票\n'
+                if self.show_user:
+                    txt+=','.join([(await bot.fetch_user(user.id)).display_name for user in await index.users.all()])+"\n"
+            txt+="```"
             await interaction.response.send_message(f'投票"{vote.name}"を締め切りました。\n結果は次のようになりました:\n{txt}')
         else:
             name, view = await start_vote(interaction.guild.id, self.values[0])
@@ -131,8 +135,7 @@ class selectVote(Select):
 # mkvote
 @bot.slash_command(name="mkvote", description="Make Voting.", default_permission=False)
 async def mkvote(ctx):
-    id=await user.mkvote(ctx.guild.id, [(usr.nick if not usr.nick is None else usr.name)
-                for usr in ctx.channel.members if not usr.bot])
+    id=await user.mkvote(ctx.guild.id, [ usr.id for usr in ctx.channel.members if not usr.bot], ctx.author.id)
     view = View(timeout=None)
     view.add_item(mkvoteSelect(id))
     await ctx.respond("投票の種類を選んで設定を行ってください。", view=view, ephemeral=True)
@@ -190,13 +193,16 @@ async def stvote_sl(ctx, id: Option(str, description="Vote ID", required=False, 
 
 # close_vote
 @bot.command(name="close_vote")
-async def close(ctx, id: str = None):
+async def close(ctx, id: str = None, show_user: bool=False):
     if id is not None:
         vote=await user.loadvote(ctx.guild.id, id)
         await user.closeVote(ctx.guild.id, id)
-        txt = ""
+        txt = "```"
         for index in vote.indexes:
             txt += f'{index.name}: {index.point}票\n'
+            if show_user:
+                txt+=','.join([(await bot.fetch_user(user.id)).display_name for user in await index.users.all()])+"\n"
+        txt+="```"
         if hasattr(ctx, "respond"):
             await ctx.respond(f'投票"{vote.name}"を締め切りました。\n結果は次のようになりました:\n{txt}')
         else:
@@ -204,7 +210,7 @@ async def close(ctx, id: str = None):
     else:
         view = View(timeout=None)
         try:
-            view.add_item(await selectVote.init("close", ctx.guild.id))
+            view.add_item(await selectVote.init("close", ctx.guild.id, show_user))
         except:
             if hasattr(ctx, "respond"):
                 await ctx.respond("終了できる投票がありません", ephemeral=True)
@@ -218,8 +224,8 @@ async def close(ctx, id: str = None):
 
 
 @bot.slash_command(name="close_vote", description="Close Voting.", default_permission=False)
-async def close_sl(ctx, vote_id: Option(str, "Vote ID", required=False, default=None)):
-    await close(ctx, vote_id)
+async def close_sl(ctx, vote_id: Option(str, "Vote ID", required=False, default=None), show_user: Option(bool, "Show user name?", required=False, default=False)):
+    await close(ctx, vote_id, show_user)
 
 # getOpening
 @bot.slash_command(name="getopening", description="Get opening Vote.", default_permission=False)
@@ -236,8 +242,7 @@ class select(Select):  # TODO: other vote mode
     async def callback(self, interaction):
         view = View(timeout=None)
         rdict = dict()
-        rdict.update(value=self.values, id=self.id, user=(
-            interaction.user.name if interaction.user.nick is None else interaction.user.nick), user_id=interaction.user.id)
+        rdict.update(value=self.values, id=self.id, user=interaction.user.display_name, user_id=interaction.user.id)
         view.add_item(button(True, rdict))
         view.add_item(button(False, rdict))
         await interaction.response.send_message("これでよろしいですか?\n(複数の選択肢ウィジェットがある場合は、一つにつき1回この手続きが必要です。)\n"+",".join(self.values), view=view, ephemeral=True)

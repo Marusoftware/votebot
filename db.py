@@ -12,10 +12,14 @@ class VoteStatus(IntEnum):
 
 class VoteMode(IntEnum):
     one_select_once=0
+    one_select_editable=1
+    multi_select_once=2
+    multi_select_editable=3
 
 class Vote(Model):
     id=UUIDField(pk=True, description="Vote ID")
     guild_id=BigIntField(description="Discord Guild ID")
+    owner_id=BigIntField(description="Owner of this vote")
     users:ManyToManyRelation["User"]
     indexes:ReverseRelation["Index"]
     status=IntEnumField(VoteStatus, description="Vote status", default=VoteStatus.not_set)
@@ -38,8 +42,8 @@ class Index(Model):
 class DB():
     async def loadvote(self, server_id, id):
         return await Vote.get(guild_id=server_id, id=id).prefetch_related("users", "indexes")
-    async def mkvote(self, server_id, users):
-        vote=await Vote.create(guild_id=server_id)
+    async def mkvote(self, server_id, users, owner_id):
+        vote=await Vote.create(guild_id=server_id, owner_id=owner_id)
         return vote.id
     async def setvote(self, server_id, id, users, mode, name, datetime, index):
         vote=await Vote.get(guild_id=server_id, id=id)
