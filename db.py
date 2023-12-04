@@ -73,16 +73,21 @@ class DB():
         await vote.save()
     async def vote(self, server_id, id, user, index, tzinfo=timezone(timedelta(hours=9))):
         temp=await self.loadvote(server_id, id)
+        if temp.end_time is not None and temp.end_time > datetime.now(tz=tzinfo):
+            return False
         if not user in [user.id for user in temp.users]:
             return False
         user=await User.get(id=user)
-        if temp.end_time is not None:
-            if temp.end_time > datetime.now(tz=tzinfo):
-                return False
-        if temp.mode == VoteMode.one_select_once and (await user.indexes.filter(vote=temp).exists() or not await user.votes.filter(id=temp.id).exists()):
+        if (temp.mode == VoteMode.one_select_once or temp.mode == VoteMode.multi_select_once) and await user.indexes.filter(vote=temp).exists():
             return False
-        index=await temp.indexes.filter(name=index).first()
-        index.point+=1
-        await index.save()
-        await index.users.add(user)
+        elif temp.mode == VoteMode.one_select_editable or temp.mode == VoteMode.multi_select_editable:
+            for idex in await user.indexes.filter(vote=temp).all():
+                idex.point-=1
+                await idex.save()
+                await idex.users.remove(user)
+        for idex in index:
+            idexm=await temp.indexes.filter(name=idex).first()
+            idexm.point+=1
+            await idexm.save()
+            await idexm.users.add(user)
         return temp.name

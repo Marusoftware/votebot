@@ -4,9 +4,9 @@ from tortoise import Tortoise, run_async
 import discord
 from discord import ButtonStyle, SelectOption, Option, Interaction, InputTextStyle
 from discord.ext import commands
-from discord.ui import Button, Select, View, Modal, InputText
+from discord.ui import Button, Select, View, Modal, InputText, button, string_select
 
-from db import DB, VoteStatus
+from db import DB, VoteMode, VoteStatus
 
 # parse argv
 argparser = argparse.ArgumentParser("VoteBot", description="VotingBot")
@@ -45,21 +45,24 @@ async def on_ready():
     logger.info("Login")
 
 """ command """
+# mkvote
+@bot.slash_command(name="mkvote", description="Make Voting.", default_permission=False)
+async def mkvote(ctx):
+    id=await user.mkvote(ctx.guild.id, [ usr.id for usr in ctx.channel.members if not usr.bot], ctx.author.id)
+    await ctx.respond("投票の種類を選んで設定を行ってください。", view=mkvoteView(id), ephemeral=True)
 
-# test
-@bot.slash_command(name="test")
-async def test(ctx):
-    await ctx.respond('正常に動作しているようです...')
-
-
-class mkvoteSelect(Select):
+class mkvoteView(View):
     def __init__(self, id):
-        super().__init__(min_values=1, max_values=1, placeholder="選択してください...", options=[
-            SelectOption(label="一つを選ぶ", value="0", description="選択肢の中から1つのみを選択できるようにします。")])
+        super().__init__(timeout=None)
         self.vote_id = id
-
-    async def callback(self, interaction: Interaction):
-        mode = int(self.values[0])
+    
+    @string_select(min_values=1, max_values=1, placeholder="選択してください...", options=[
+            SelectOption(label="一つを選ぶ", value="0", description="選択肢の中から1つのみを選択できるようにします。"),
+            SelectOption(label="一つを選ぶ(変更可)", value="1", description="「一つを選ぶ」に加えて変更することができるようにします。"),
+            SelectOption(label="複数選ぶ", value="2", description="選択肢の中から複数個を選択できるようにします。"),
+            SelectOption(label="複数選ぶ(変更可)", value="3", description="「複数選ぶ」に加えて変更することができるようにします。"),])
+    async def callback(self, select:Select, interaction: Interaction):
+        mode = int(select.values[0])
         await interaction.response.send_modal(setupModal(self.vote_id, mode))
 
 
@@ -71,76 +74,27 @@ class setupModal(Modal):
         self.add_item(InputText(style=InputTextStyle.singleline,
                       label="投票の名前(必須):", required=True))
         self.add_item(InputText(style=InputTextStyle.singleline, label="有効期限:",
-                      placeholder="yyyy-mm-dd hh:mm:ss+zz:zz(ISOフォーマットで入力。省略可能)", required=False))
+                      placeholder="yyyy-mm-dd hh:mm:ss+zz:zz(ISOフォーマットで入力。部分省略可能)", required=False))
         self.add_item(InputText(style=InputTextStyle.multiline,
                       label="選択肢(必須):", placeholder="1行に一つずつ入力してください。", required=True))
 
     async def callback(self, interaction: Interaction):
+        try:
+            if self.children[1].value == "":
+                date=None
+            else:
+                date=datetime.fromisoformat(self.children[1].value)
+                if not "+" in self.children[1].value:
+                    date.astimezone(timezone(timedelta(hours=9)))
+        except ValueError:
+            logger.warning(f"Invalid date format(input={self.children[1].value}, guild_id={interaction.guild_id})")
+            return
         await user.setvote(server_id=interaction.guild_id, id=self.vote_id, users=[mem.id for mem in interaction.guild.members], mode=self.vote_mode, name=self.children[0].value,
-                            datetime=None if self.children[1].value == "" else (datetime.fromisoformat(self.children[1].value) if "+" in self.children[1].value else datetime.fromisoformat(self.children[1].value).astimezone(timezone(timedelta(hours=9)))), index=self.children[2].value.split("\n"))
-        view = View(timeout=None)
-        view.add_item(startVoteBtn(self.vote_id))
-        await interaction.response.send_message(f"設定が完了しました! \n/start_voteコマンドで投票を開始してください。もしくはボタンを押すと今すぐ開始できます。", ephemeral=True, view=view)
+                            datetime=date, index=self.children[2].value.split("\n"))
+        await interaction.response.send_message(f"設定が完了しました! \n/start_voteコマンドで投票を開始してください。もしくはボタンを押すと今すぐ開始できます。", ephemeral=True, view=startVoteView(self.vote_id))
 
 
-class startVoteBtn(Button):
-    def __init__(self, vote_id):
-        super().__init__(style=ButtonStyle.green, label="投票を開始する")
-        self.vote_id = vote_id
-
-    async def callback(self, interaction: Interaction):
-        name, view = await start_vote(interaction.guild.id, self.vote_id)
-        await interaction.response.defer()
-        await interaction.channel.send(f"投票:{name}", view=view)
-        await interaction.edit_original_response(view=None)
-
-
-class selectVote(Select):
-    @classmethod
-    async def init(cls, action, gid, show_user=False):
-        options = []
-        moving = await user.getmovingVote(gid)
-        if action == "close":
-            for vote in moving:
-                options.append(SelectOption(label=vote.name, value=str(vote.id)))
-        else:
-            votes = await user.listvote(gid)
-            for vote in votes:
-                if vote.status != VoteStatus.running:
-                    options.append(SelectOption(label=vote.name, value=str(vote.id)))
-        if len(options) == 0:
-            raise
-        obj=cls(placeholder="選択してください...",
-                         options=options, disabled=len(options) == 0)
-        obj.action = action
-        obj.show_user=show_user
-        return obj
-
-    async def callback(self, interaction: Interaction):
-        if self.action == "close":
-            await user.closeVote(interaction.guild.id, self.values[0])
-            vote = await user.loadvote(interaction.guild.id, self.values[0])
-            txt = "```"
-            for index in vote.indexes:
-                txt += f'{index.name}: {index.point}票\n'
-                if self.show_user:
-                    txt+=','.join([(await bot.fetch_user(user.id)).display_name for user in await index.users.all()])+"\n"
-            txt+="```"
-            await interaction.response.send_message(f'投票"{vote.name}"を締め切りました。\n結果は次のようになりました:\n{txt}')
-        else:
-            name, view = await start_vote(interaction.guild.id, self.values[0])
-            await interaction.response.defer()
-            await interaction.channel.send(f"投票:{name}", view=view)
-
-# mkvote
-@bot.slash_command(name="mkvote", description="Make Voting.", default_permission=False)
-async def mkvote(ctx):
-    id=await user.mkvote(ctx.guild.id, [ usr.id for usr in ctx.channel.members if not usr.bot], ctx.author.id)
-    view = View(timeout=None)
-    view.add_item(mkvoteSelect(id))
-    await ctx.respond("投票の種類を選んで設定を行ってください。", view=view, ephemeral=True)
-
-
+# start_vote
 async def start_vote(gid, vote_id):
     vote = await user.loadvote(gid, vote_id)
     border = 25
@@ -149,7 +103,7 @@ async def start_vote(gid, vote_id):
     for i in range(len(vote.indexes)//border):
         for j in range(border):
             llist.append(SelectOption(label=vote.indexes[i*border+j]))
-        view.add_item(select(vote_id+"_"+str(i), llist=llist, id=vote_id))
+        view.add_item(voteSelect(vote_id+"_"+str(i), llist=llist, id=vote_id, multiple=vote.mode>=VoteMode.multi_select_once))
         llist = []
     try:
         i = i+1
@@ -158,11 +112,11 @@ async def start_vote(gid, vote_id):
     for k in range(len(vote.indexes) % border):
         n = i*border+k
         llist.append(SelectOption(label=vote.indexes[n].name))
-    view.add_item(select(str(vote_id)+"_"+str(i), llist=llist, id=vote_id))
+    view.add_item(voteSelect(str(vote_id)+"_"+str(i), llist=llist, id=vote_id, multiple=vote.mode>=VoteMode.multi_select_once))
     await user.addmovingVote(gid, vote_id)
     return vote.name, view
 
-# start_vote
+
 @bot.command(name="start_vote", aliases=["stvote"])
 async def stvote(ctx, id: str = None):
     if id != None and type(id) == str:
@@ -191,6 +145,59 @@ async def stvote(ctx, id: str = None):
 async def stvote_sl(ctx, id: Option(str, description="Vote ID", required=False, default=None)):
     await stvote(ctx, id)
 
+
+class startVoteView(View):
+    def __init__(self, vote_id):
+        super().__init__(timeout=None)
+        self.vote_id = vote_id
+    
+    @button(style=ButtonStyle.green, label="投票を開始する")
+    async def callback(self, btn:Button, interaction: Interaction):
+        name, view = await start_vote(interaction.guild.id, self.vote_id)
+        await interaction.response.defer()
+        await interaction.channel.send(f"投票:{name}", view=view)
+        self.stop()
+        await interaction.edit_original_response(view=None)
+
+
+class selectVote(Select):
+    @classmethod
+    async def init(cls, action, gid, show_user=False):
+        options = []
+        moving = await user.getmovingVote(gid)
+        if action == "close":
+            for vote in moving:
+                options.append(SelectOption(label=vote.name, value=str(vote.id)))
+        else:
+            votes = await user.listvote(gid)
+            for vote in votes:
+                if vote.status == VoteStatus.set or vote.status == VoteStatus.closed:
+                    options.append(SelectOption(label=vote.name, value=str(vote.id)))
+        if len(options) == 0:
+            raise
+        obj=cls(placeholder="選択してください...",
+                         options=options, disabled=len(options) == 0)
+        obj.action = action
+        obj.show_user=show_user
+        return obj
+
+    async def callback(self, interaction: Interaction):
+        if self.action == "close":
+            await user.closeVote(interaction.guild.id, self.values[0])
+            vote = await user.loadvote(interaction.guild.id, self.values[0])
+            txt = "```"
+            for index in vote.indexes:
+                txt += f'{index.name}: {index.point}票\n'
+                if self.show_user:
+                    txt+=', '.join([(await bot.fetch_user(user.id)).display_name for user in await index.users.all()])+"\n"
+            txt+="```"
+            await interaction.response.send_message(f'投票"{vote.name}"を締め切りました。\n結果は次のようになりました:\n{txt}')
+        else:
+            name, view = await start_vote(interaction.guild.id, self.values[0])
+            await interaction.response.defer()
+            await interaction.channel.send(f"投票:{name}", view=view)
+
+
 # close_vote
 @bot.command(name="close_vote")
 async def close(ctx, id: str = None, show_user: bool=False):
@@ -201,7 +208,7 @@ async def close(ctx, id: str = None, show_user: bool=False):
         for index in vote.indexes:
             txt += f'{index.name}: {index.point}票\n'
             if show_user:
-                txt+=','.join([(await bot.fetch_user(user.id)).display_name for user in await index.users.all()])+"\n"
+                txt+=', '.join([(await bot.fetch_user(user.id)).display_name for user in await index.users.all()])+"\n"
         txt+="```"
         if hasattr(ctx, "respond"):
             await ctx.respond(f'投票"{vote.name}"を締め切りました。\n結果は次のようになりました:\n{txt}')
@@ -227,24 +234,27 @@ async def close(ctx, id: str = None, show_user: bool=False):
 async def close_sl(ctx, vote_id: Option(str, "Vote ID", required=False, default=None), show_user: Option(bool, "Show user name?", required=False, default=False)):
     await close(ctx, vote_id, show_user)
 
+
 # getOpening
 @bot.slash_command(name="getopening", description="Get opening Vote.", default_permission=False)
 async def getOpen(ctx):
     votes = await user.getmovingVote(ctx.guild.id)
-    await ctx.respond('\n'.join([f'{vote.id}:{vote.name}' for vote in votes]), ephemeral=True)
+    if len(votes) ==0:
+        await ctx.respond('現在実施されている投票はありません。', ephemeral=True)
+    else:
+        await ctx.respond('\n'.join([f'{vote.id}:{vote.name}' for vote in votes]), ephemeral=True)
 
 
-class select(Select):  # TODO: other vote mode
-    def __init__(self, custom_id, llist, id):
-        super().__init__(custom_id=custom_id, options=llist)
+class voteSelect(Select):
+    def __init__(self, custom_id, llist, id, multiple):
+        super().__init__(custom_id=custom_id, options=llist, max_values=len(llist) if multiple else 1)
         self.id = id
 
     async def callback(self, interaction):
         view = View(timeout=None)
-        rdict = dict()
-        rdict.update(value=self.values, id=self.id, user=interaction.user.display_name, user_id=interaction.user.id)
-        view.add_item(button(True, rdict))
-        view.add_item(button(False, rdict))
+        rdict = {"value":self.values, "id":self.id, "user":interaction.user.display_name, "user_id":interaction.user.id}
+        view.add_item(voteButton(True, rdict))
+        view.add_item(voteButton(False, rdict))
         await interaction.response.send_message("これでよろしいですか?\n(複数の選択肢ウィジェットがある場合は、一つにつき1回この手続きが必要です。)\n"+",".join(self.values), view=view, ephemeral=True)
 
 
@@ -252,7 +262,7 @@ locale2tz={
     "ja": 9,
 }
 
-class button(Button):
+class voteButton(Button):
     def __init__(self, ok, response_dict):
         super().__init__(style=(ButtonStyle.green if ok else ButtonStyle.red), label=("はい" if ok else "いいえ"),
                          emoji=(bot.get_emoji(871402454527410267) if ok else bot.get_emoji(871402621657821215)))
@@ -270,11 +280,17 @@ class button(Button):
             vote=await user.loadvote(server, id)
             if vote.status==VoteStatus.running:
                 # TODO: other vote mode
-                out = await user.vote(server, id, member_id, index[0], tzinfo=timezone(timedelta(hours=locale2tz.get(interaction.locale, 9))))
+                out = await user.vote(server, id, member_id, index, tzinfo=timezone(timedelta(hours=locale2tz.get(interaction.locale, 9))))
                 if out:
                     await interaction.edit_original_response(content=f'投票{out}における{member}さんの{",".join(index)}への投票を受け付けました。', view=None)
                 else:
-                    await interaction.edit_original_response(content="何らかの問題により、投票に失敗しました。", view=None)
+                    await interaction.edit_original_response(content="""何らかの問題により、投票に失敗しました。
+                                                             ```
+                                                             以下のような原因が考えられます:
+                                                             - すでに回答済みである
+                                                             - 締切時刻を過ぎている
+                                                             - 回答権限がない
+                                                             ```""", view=None)
             else:
                 await interaction.edit_original_response(content="この投票は締め切られているか、開始されていない可能性があります。", view=None)
         else:
