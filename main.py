@@ -118,7 +118,7 @@ async def start_vote(gid, vote_id):
 
 
 @bot.command(name="start_vote", aliases=["stvote"])
-async def stvote(ctx, id: str = None):
+async def stvote(ctx, id: str = None, show_closed:bool=False):
     if id != None and type(id) == str:
         name, view = await start_vote(ctx.guild.id, id)
         if hasattr(ctx, "respond"):
@@ -128,7 +128,7 @@ async def stvote(ctx, id: str = None):
     else:
         view = View(timeout=None)
         try:
-            view.add_item(await selectVote.init("start", ctx.guild.id))
+            view.add_item(await selectVote.init("start", ctx.guild.id, show_closed=show_closed))
         except:
             if hasattr(ctx, "respond"):
                 await ctx.respond("開始できる投票がありません", ephemeral=True)
@@ -142,8 +142,9 @@ async def stvote(ctx, id: str = None):
 
 
 @bot.slash_command(name="start_vote", description="Start Voting", default_permission=False)
-async def stvote_sl(ctx, id: Option(str, description="Vote ID", required=False, default=None)):
-    await stvote(ctx, id)
+async def stvote_sl(ctx, id: Option(str, description="Vote ID", required=False, default=None),
+                    show_closed: Option(bool, description="Show closed vote", required=False, default=False)):
+    await stvote(ctx, id, show_closed)
 
 
 class startVoteView(View):
@@ -162,7 +163,7 @@ class startVoteView(View):
 
 class selectVote(Select):
     @classmethod
-    async def init(cls, action, gid, show_user=False):
+    async def init(cls, action, gid, show_user=False, show_closed=False):
         options = []
         moving = await user.getmovingVote(gid)
         if action == "close":
@@ -171,7 +172,7 @@ class selectVote(Select):
         else:
             votes = await user.listvote(gid)
             for vote in votes:
-                if vote.status == VoteStatus.set or vote.status == VoteStatus.closed:
+                if vote.status == VoteStatus.set or (vote.status == VoteStatus.closed and show_closed):
                     options.append(SelectOption(label=vote.name, value=str(vote.id)))
         if len(options) == 0:
             raise
@@ -183,8 +184,8 @@ class selectVote(Select):
 
     async def callback(self, interaction: Interaction):
         if self.action == "close":
-            await user.closeVote(interaction.guild.id, self.values[0])
             vote = await user.loadvote(interaction.guild.id, self.values[0])
+            await user.closeVote(interaction.guild.id, self.values[0])
             txt = "```"
             for index in vote.indexes:
                 txt += f'{index.name}: {index.point}票\n'
