@@ -19,7 +19,8 @@ class VoteMode(IntEnum):
 class Vote(Model):
     id=UUIDField(pk=True, description="Vote ID")
     guild_id=BigIntField(description="Discord Guild ID")
-    owner_id=BigIntField(description="Owner of this vote")
+    owner_id=BigIntField(description="Owner of this vote", null=True)
+    message_id=BigIntField(description="Voting message id", null=True)
     users:ManyToManyRelation["User"]
     indexes:ReverseRelation["Index"]
     status=IntEnumField(VoteStatus, description="Vote status", default=VoteStatus.not_set)
