@@ -72,6 +72,7 @@ class DB():
     async def closeVote(self, server_id, id):
         vote=await self.loadvote(server_id, id)
         vote.status=VoteStatus.closed
+        vote.message_id=None
         await vote.save()
     async def vote(self, server_id, id, user, index, tzinfo=timezone(timedelta(hours=9))):
         temp=await self.loadvote(server_id, id)

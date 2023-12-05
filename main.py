@@ -2,7 +2,7 @@ import logging, argparse, pytz
 from datetime import datetime, timezone, timedelta
 from tortoise import Tortoise, run_async
 import discord
-from discord import ButtonStyle, SelectOption, Option, Interaction, InputTextStyle
+from discord import ButtonStyle, Forbidden, HTTPException, SelectOption, Option, Interaction, InputTextStyle
 from discord.ext import commands
 from discord.ui import Button, Select, View, Modal, InputText, button, string_select
 
@@ -46,10 +46,16 @@ async def on_ready():
     logger.info("Start resuming votes...")
     for vote in await user.getALLmovingVote():
         if vote.message_id is not None:
-            guild=await bot.fetch_guild(vote.guild_id)
-            message=await guild.get_channel(vote.message_id)
-            view=voteSelect(vote.id, vote.mode, vote.indexes)
-            bot.add_view(view, message_id=message.id)
+            try:
+                guild=await bot.fetch_guild(vote.guild_id)
+                message=await guild.get_channel(vote.message_id)
+            except (Forbidden, HTTPException, TypeError):
+                logger.warning(f"failed to get infomation for guild {vote.guild_id} message {vote.message_id}")
+                vote.message_id=None
+                await vote.save()
+            else:
+                view=voteSelect(vote.id, vote.mode, vote.indexes)
+                bot.add_view(view, message_id=message.id)
     logger.info("Resuming votes completed!")
 
 
