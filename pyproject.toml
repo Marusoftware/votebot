@@ -10,8 +10,6 @@ readme = "README.md"
 python = "^3.8"
 py-cord = {extras = ["speed", "voice"], version = "^2.3.1"}
 tortoise-orm = {extras = ["accel"], version = "^0.19.2"}
-pytz = "^2023.3"
-
 
 [tool.poetry.group.dev.dependencies]
 autopep8 = "^2.0.0"

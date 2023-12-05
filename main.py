@@ -1,4 +1,4 @@
-import logging, argparse, pytz
+import logging, argparse
 from datetime import datetime, timezone, timedelta
 from tortoise import Tortoise, run_async
 import discord
