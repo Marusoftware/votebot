@@ -67,10 +67,11 @@ class DB():
         await vote.save()
     async def getmovingVote(self, server_id):
         return await Vote.filter(guild_id=server_id, status=VoteStatus.running)
-    async def closeVote(self, server_id, id, delete_vote):
+    async def getALLmovingVote(self):
+        return await Vote.filter(status=VoteStatus.running).prefetch_related("indexes")
+    async def closeVote(self, server_id, id):
         vote=await self.loadvote(server_id, id)
         vote.status=VoteStatus.closed
-        if delete_vote: await vote.delete()
         await vote.save()
     async def vote(self, server_id, id, user, index, tzinfo=timezone(timedelta(hours=9))):
         temp=await self.loadvote(server_id, id)

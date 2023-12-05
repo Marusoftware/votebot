@@ -43,6 +43,15 @@ user = DB()
 @bot.event
 async def on_ready():
     logger.info("Login")
+    logger.info("Start resuming votes...")
+    for vote in await user.getALLmovingVote():
+        if vote.message_id is not None:
+            guild=await bot.fetch_guild(vote.guild_id)
+            message=await guild.get_channel(vote.message_id)
+            view=voteSelect(vote.id, vote.mode, vote.indexes)
+            bot.add_view(view, message_id=message.id)
+    logger.info("Resuming votes completed!")
+
 
 """ command """
 # mkvote
@@ -95,24 +104,13 @@ class setupModal(Modal):
 
 
 # start_vote
-async def start_vote(gid, vote_id):
+async def start_vote(gid, vote_id, msg=None):
     vote = await user.loadvote(gid, vote_id)
-    border = 25
-    llist = []
-    view = View(timeout=None)
-    for i in range(len(vote.indexes)//border):
-        for j in range(border):
-            llist.append(SelectOption(label=vote.indexes[i*border+j]))
-        view.add_item(voteSelect(vote_id+"_"+str(i), llist=llist, id=vote_id, multiple=vote.mode>=VoteMode.multi_select_once))
-        llist = []
-    try:
-        i = i+1
-    except:
-        i = 0
-    for k in range(len(vote.indexes) % border):
-        n = i*border+k
-        llist.append(SelectOption(label=vote.indexes[n].name))
-    view.add_item(voteSelect(str(vote_id)+"_"+str(i), llist=llist, id=vote_id, multiple=vote.mode>=VoteMode.multi_select_once))
+    if msg is not None:
+        vote.message_id=msg.id
+        vote.channel_id=msg.channel.id
+        await vote.save()
+    view=voteSelect(vote.id, vote.mode, vote.indexes)
     await user.addmovingVote(gid, vote_id)
     return vote.name, view
 
@@ -120,11 +118,12 @@ async def start_vote(gid, vote_id):
 @bot.command(name="start_vote", aliases=["stvote"])
 async def stvote(ctx, id: str = None, show_closed:bool=False):
     if id != None and type(id) == str:
-        name, view = await start_vote(ctx.guild.id, id)
         if hasattr(ctx, "respond"):
-            await ctx.respond(f"投票:{name}", view=view)
+            msg=await ctx.respond('投票を準備しています...')
         else:
-            await ctx.send(f'投票:{name}', view=view)
+            msg=await ctx.send('投票を準備しています...')
+        name, view = await start_vote(ctx.guild.id, id, msg)
+        await msg.edit(f"投票:{name}", view=view)
     else:
         view = View(timeout=None)
         try:
@@ -154,9 +153,10 @@ class startVoteView(View):
     
     @button(style=ButtonStyle.green, label="投票を開始する")
     async def callback(self, btn:Button, interaction: Interaction):
-        name, view = await start_vote(interaction.guild.id, self.vote_id)
         await interaction.response.defer()
-        await interaction.channel.send(f"投票:{name}", view=view)
+        msg=await interaction.channel.send('投票を準備しています...')
+        name, view = await start_vote(interaction.guild.id, self.vote_id, msg)
+        await msg.edit(f"投票:{name}", view=view)
         self.stop()
         await interaction.edit_original_response(view=None)
 
@@ -246,14 +246,32 @@ async def getOpen(ctx):
         await ctx.respond('\n'.join([f'{vote.id}:{vote.name}' for vote in votes]), ephemeral=True)
 
 
-class voteSelect(Select):
-    def __init__(self, custom_id, llist, id, multiple):
-        super().__init__(custom_id=custom_id, options=llist, max_values=len(llist) if multiple else 1)
-        self.id = id
+class voteSelect(View):
+    def __init__(self, id, mode, indexes):
+        border = 25
+        llist = []
+        super().__init__(timeout=None)
+        for i in range(len(indexes)//border):
+            for j in range(border):
+                llist.append(SelectOption(label=indexes[i*border+j]))
+            sl=_voteSelect(options=llist, custom_id=str(id), max_values=len(llist) if mode>=VoteMode.multi_select_once else 1 )
+            sl.callback=self.callback
+            self.add_item(sl)
+            llist = []
+        try:
+            i = i+1
+        except:
+            i = 0
+        for k in range(len(indexes) % border):
+            n = i*border+k
+            llist.append(SelectOption(label=indexes[n].name))
+        sl=_voteSelect(options=llist, custom_id=str(id), max_values=len(llist) if mode>=VoteMode.multi_select_once else 1 )
+        self.add_item(sl)
 
+class _voteSelect(Select):
     async def callback(self, interaction):
         view = View(timeout=None)
-        rdict = {"value":self.values, "id":self.id, "user":interaction.user.display_name, "user_id":interaction.user.id}
+        rdict = {"value":self.values, "id":self.custom_id, "user":interaction.user.display_name, "user_id":interaction.user.id}
         view.add_item(voteButton(True, rdict))
         view.add_item(voteButton(False, rdict))
         await interaction.response.send_message("これでよろしいですか?\n(複数の選択肢ウィジェットがある場合は、一つにつき1回この手続きが必要です。)\n"+",".join(self.values), view=view, ephemeral=True)
