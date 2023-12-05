@@ -46,16 +46,8 @@ async def on_ready():
     logger.info("Start resuming votes...")
     for vote in await user.getALLmovingVote():
         if vote.message_id is not None:
-            try:
-                guild=await bot.fetch_guild(vote.guild_id)
-                message=await guild.get_channel(vote.message_id)
-            except (Forbidden, HTTPException, TypeError):
-                logger.warning(f"failed to get infomation for guild {vote.guild_id} message {vote.message_id}")
-                vote.message_id=None
-                await vote.save()
-            else:
-                view=voteSelect(vote.id, vote.mode, vote.indexes)
-                bot.add_view(view, message_id=message.id)
+            view=voteSelect(vote.id, vote.mode, vote.indexes)
+            bot.add_view(view, message_id=vote.message_id)
     logger.info("Resuming votes completed!")
 
 
@@ -114,7 +106,6 @@ async def start_vote(gid, vote_id, msg=None):
     vote = await user.loadvote(gid, vote_id)
     if msg is not None:
         vote.message_id=msg.id
-        vote.channel_id=msg.channel.id
         await vote.save()
     view=voteSelect(vote.id, vote.mode, vote.indexes)
     await user.addmovingVote(gid, vote_id)
@@ -200,9 +191,10 @@ class selectVote(Select):
             txt+="```"
             await interaction.response.send_message(f'投票"{vote.name}"を締め切りました。\n結果は次のようになりました:\n{txt}')
         else:
-            name, view = await start_vote(interaction.guild.id, self.values[0])
+            msg=await interaction.channel.send('投票を準備しています...')
+            name, view = await start_vote(interaction.guild.id, self.values[0], msg)
             await interaction.response.defer()
-            await interaction.channel.send(f"投票:{name}", view=view)
+            await msg.edit(f"投票:{name}", view=view)
 
 
 # close_vote
@@ -210,6 +202,8 @@ class selectVote(Select):
 async def close(ctx, id: str = None, show_user: bool=False):
     if id is not None:
         vote=await user.loadvote(ctx.guild.id, id)
+        msg=bot.get_message(vote.message_id)
+        if msg is not None: await msg.delete()
         await user.closeVote(ctx.guild.id, id)
         txt = "```"
         for index in vote.indexes:
