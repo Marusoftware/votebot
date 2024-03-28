@@ -304,11 +304,11 @@ class voteButton(Button):
                     await interaction.edit_original_response(content=f'投票{out}における{member}さんの{",".join(index)}への投票を受け付けました。', view=None)
                 else:
                     await interaction.edit_original_response(content="何らかの問題により、投票に失敗しました。"
-                                                                    "``` "
-                                                                    "以下のような原因が考えられます:"
-                                                                    "- すでに回答済みである "
-                                                                    "- 締切時刻を過ぎている "
-                                                                    "- 回答権限がない "
+                                                                    "```"
+                                                                    "以下のような原因が考えられます: \n"
+                                                                    "- すでに回答済みである \n"
+                                                                    "- 締切時刻を過ぎている \n"
+                                                                    "- 回答権限がない \n"
                                                                     "```", view=None)
             else:
                 await interaction.edit_original_response(content="この投票は締め切られているか、開始されていない可能性があります。", view=None)
